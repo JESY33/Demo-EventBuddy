@@ -534,35 +534,58 @@ https://www.windowsazure.com/en-us/develop/mobile/tutorials/get-started-with-pus
 
 	> **Speaking Point:** Instead of making you wait while I type in this script, I'll copy the script I wrote earlier to the clipboard and paste it in.
 
-	> This JavaScript will simply go out to Twitter's APIs, retrieve the profile picture for the speaker using the speaker's twitter account, and store the URL of the picture with the session record. 
+	> This JavaScript will simply go out to Twitter's APIs, retrieve the profile picture for the speaker using the speaker's twitter account, and store the URL of the picture with the session record.   We need to have set up a Twitter app for our Mobile Service in order to make an authenticated call to the Twitter API.  If you didn't set up a Twitter app before for authentication, do so now.  You'll need to replace the twitterConsumerKey and twitterConsumerSecret values with those from the Twitter dev portal.  Additionally, if the user is not signed in with Twitter, you'll need to place your own user token and secret into the script.
 
 	````JavaScript
-	function insert(item, user, request) {
-		 item.userId = user.userId;
-
-		 if (item.speaker) {
-			  var url = "https://api.twitter.com/1/users/show.json?screen_name=" + item.speaker;
-			  var req = require("request");
-
-			  req.get(url,
-			  function(error, result, body) {
-				  item.img = "";
-				  if (error || result.statusCode != 200) request.execute();
-
-				  var json = JSON.parse(body);
-				  if(json.profile_image_url){
-						 var biggerImg =  json.profile_image_url.replace("normal","bigger");
-						 item.img = biggerImg;
-				  }
-
-				  request.execute();
-			  });
-		 }
-		 else {
-			  item.img = "Assets/NoProfile.png";
-			  request.execute();
-		 }
-	}
+	function insert(item, user, request) { 
+      item.userId = user.userId; 
+ 
+      if (item.speaker) { 
+          // get these from https://dev.twitter.com/apps
+            var twitterConsumerKey = 'YourAppsConsumerKey';
+            var twitterConsumerSecret = 'YourAppsConsumerSecret';
+             
+            // This works for users signed in with Twitter auth, otherwise
+            // you can use your own values for this from https://dev.twitter.com/apps 
+            // these are on the same page under "your access token" section
+            var identities = user.getIdentities();
+            var userToken = identities.twitter.accessToken;
+            var userSecret = identities.twitter.accessTokenSecret;
+             
+            var OAuth = require('OAuth');
+            var oauth = new OAuth.OAuth(
+                  'https://api.twitter.com/oauth/request_token',
+                  'https://api.twitter.com/oauth/access_token',
+                  twitterConsumerKey,
+                  twitterConsumerSecret,
+                 '1.0A',
+                  null,
+                  'HMAC-SHA1'
+                );
+            
+            oauth.get("https://api.twitter.com/1.1/users/show.json?screen_name=" + item.speaker, userToken, userSecret, 
+            function(error, data) {
+                //console.log("error: ", error);
+                console.log("data: ", data);
+                
+                if (data) {                    
+                    var json = JSON.parse(data);
+                    if (json.profile_image_url) {
+                        var biggerImg = json.profile_image_url.replace("normal", "bigger");
+                        item.img = biggerImg;
+                        request.execute();
+                    }
+                } else {
+                    item.img = "Assets/NoProfile.png"; 
+                    request.execute(); 
+                }
+            });                                
+      } 
+      else { 
+             item.img = "Assets/NoProfile.png"; 
+             request.execute(); 
+      } 
+} 
 	````
 
 	> **Note:** Take into account that in order to show an Update and retrieve a new Twitter handler picture, you must paste the above script into the **Update** operation, but renaming the function to _update_. This way, whenever you change a Session with a different Twitter handle, the new picture URL will be retrieved and saved.
